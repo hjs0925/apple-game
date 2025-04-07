@@ -8,7 +8,7 @@ using System.Linq;
 
 public class GameControl : MonoBehaviour
 {
-    public enum GameMode { Add, Subtract }
+    public enum GameMode { Add, Subtract, AP, GP }
 
     [Header("Editor Setting")]
     public GameObject canvas;
@@ -48,6 +48,8 @@ public class GameControl : MonoBehaviour
     private Dictionary<GameMode, BoardState> savedStates = new();
     private bool usedHintInAdd = false;
     private bool usedHintInSubtract = false;
+    private bool usedHintInAP = false;
+    private bool usedHintInGP = false;
 
     private void Awake()
     {
@@ -57,6 +59,10 @@ public class GameControl : MonoBehaviour
             horizontalLength--;
 
         mapApple = new int[verticalLength, horizontalLength];
+        
+        // 저장된 모드 불러오기
+        LoadGameMode();
+        
         InitBoard();
     }
 
@@ -106,15 +112,97 @@ public class GameControl : MonoBehaviour
             result = selectList.Sum(a => a.number);
             if (result == 10) OnCorrectAnswer(cnt);
         }
-        else if (cnt > 1)
+        else if (currentMode == GameMode.Subtract && cnt > 1)
         {
             var maxApple = selectList.OrderByDescending(a => a.number).First();
             result = maxApple.number - selectList.Where(a => a != maxApple).Sum(a => a.number);
             if (result == 0) OnCorrectAnswer(cnt);
         }
+        else if (currentMode == GameMode.AP && cnt >= 3)
+        {
+            // 세로줄인지 확인 (모든 사과가 같은 열에 있는지)
+            bool isVertical = selectList.All(a => a.coor.y == selectList[0].coor.y);
+            
+            List<int> values;
+            if (isVertical)
+            {
+                // 세로줄인 경우 위에서 아래로 정렬
+                values = selectList.OrderBy(a => a.coor.x).Select(a => a.number).ToList();
+            }
+            else
+            {
+                // 가로줄인 경우 원래 순서 유지
+                values = selectList.Select(a => a.number).ToList();
+            }
+            
+            if (IsValidAP(values))
+            {
+                OnCorrectAnswer(cnt);
+            }
+        }
+        else if (currentMode == GameMode.GP && cnt >= 3)
+        {
+            // 세로줄인지 확인 (모든 사과가 같은 열에 있는지)
+            bool isVertical = selectList.All(a => a.coor.y == selectList[0].coor.y);
+            
+            List<int> values;
+            if (isVertical)
+            {
+                // 세로줄인 경우 위에서 아래로 정렬
+                values = selectList.OrderBy(a => a.coor.x).Select(a => a.number).ToList();
+            }
+            else
+            {
+                // 가로줄인 경우 원래 순서 유지
+                values = selectList.Select(a => a.number).ToList();
+            }
+            
+            if (IsValidGP(values))
+            {
+                OnCorrectAnswer(cnt);
+            }
+        }
 
         selectList.Clear();
         answerCoors.Clear();
+    }
+
+    private bool IsValidAP(List<int> values)
+    {
+        if (values.Count < 3) return false;
+        
+        // 정렬하지 않고 원래 순서대로 검증
+        int d = values[1] - values[0];
+        
+        // 모든 연속된 숫자 쌍의 차이가 동일한지 확인
+        for (int i = 1; i < values.Count; i++)
+        {
+            if (values[i] - values[i-1] != d)
+                return false;
+        }
+        
+        return true;
+    }
+
+    private bool IsValidGP(List<int> values)
+    {
+        if (values.Count < 3) return false;
+        
+        // 모든 값이 양수인지 확인 (등비수열에 필요)
+        if (values.Any(v => v <= 0)) return false;
+        
+        // 정렬하지 않고 원래 순서대로 검증
+        float r = (float)values[1] / values[0];
+        
+        // 모든 연속된 숫자 쌍의 비율이 동일한지 확인 (부동 소수점 오차 허용)
+        for (int i = 1; i < values.Count; i++)
+        {
+            float currentRatio = (float)values[i] / values[i-1];
+            if (Mathf.Abs(currentRatio - r) > 0.0001f)
+                return false;
+        }
+        
+        return true;
     }
 
     private void OnCorrectAnswer(int cnt)
@@ -148,7 +236,23 @@ public class GameControl : MonoBehaviour
         foreach (var a in applesList) Destroy(a.gameObject);
         applesList.Clear();
 
-        currentMode = (currentMode == GameMode.Add) ? GameMode.Subtract : GameMode.Add;
+        // Cycle through all four modes
+        switch (currentMode)
+        {
+            case GameMode.Add:
+                currentMode = GameMode.Subtract;
+                break;
+            case GameMode.Subtract:
+                currentMode = GameMode.AP;
+                break;
+            case GameMode.AP:
+                currentMode = GameMode.GP;
+                break;
+            case GameMode.GP:
+                currentMode = GameMode.Add;
+                break;
+        }
+        
         LoadOrInitModeState();
         UpdateModeUI();
         Hint.gameObject.SetActive(true);
@@ -158,14 +262,31 @@ public class GameControl : MonoBehaviour
 
     private void UpdateHintButtonVisibility()
     {
-        Hint.gameObject.SetActive(!(currentMode == GameMode.Add && usedHintInAdd || currentMode == GameMode.Subtract && usedHintInSubtract));
+        Hint.gameObject.SetActive(!(currentMode == GameMode.Add && usedHintInAdd || currentMode == GameMode.Subtract && usedHintInSubtract || currentMode == GameMode.AP && usedHintInAP|| currentMode == GameMode.GP && usedHintInGP));
+        noHintText.gameObject.SetActive(false);
         hintBox.gameObject.SetActive(false);
     }
 
     private void UpdateModeUI()
     {
         if (modeText != null)
-            modeText.text = currentMode == GameMode.Add ? "현재 모드: 더하기" : "현재 모드: 빼기";
+        {
+            switch (currentMode)
+            {
+                case GameMode.Add:
+                    modeText.text = "현재 모드: 더하기";
+                    break;
+                case GameMode.Subtract:
+                    modeText.text = "현재 모드: 빼기";
+                    break;
+                case GameMode.AP:
+                    modeText.text = "현재 모드: 등차수열";
+                    break;
+                case GameMode.GP:
+                    modeText.text = "현재 모드: 등비수열";
+                    break;
+            }
+        }
     }
 
     private void DragSystem()
@@ -239,6 +360,7 @@ public class GameControl : MonoBehaviour
         for (int len = 2; len <= maxLength; len++)
         {
             List<int> values = new();
+            List<Vector2Int> coords = new();
             bool hasEmpty = false;
 
             for (int k = 0; k < len; k++)
@@ -246,11 +368,48 @@ public class GameControl : MonoBehaviour
                 var a = GetAppleAt(sx + k * dx, sy + k * dy);
                 if (a == null) { hasEmpty = true; break; }
                 values.Add(a.number);
+                coords.Add(a.coor);
             }
 
             if (hasEmpty) continue;
 
-            bool isValid = currentMode == GameMode.Add ? values.Sum() == 10 : IsValidSubtractCombo(values);
+            bool isValid = false;
+            
+            // 세로줄인지 확인 (dx가 0인 경우)
+            bool isVertical = dx == 0;
+            
+            if (isVertical && (currentMode == GameMode.AP || currentMode == GameMode.GP))
+            {
+                // 세로줄인 경우 위에서 아래로 정렬
+                var sortedIndices = Enumerable.Range(0, coords.Count)
+                    .OrderBy(i => coords[i].x)
+                    .ToList();
+                
+                List<int> sortedValues = new();
+                foreach (var idx in sortedIndices)
+                {
+                    sortedValues.Add(values[idx]);
+                }
+                
+                values = sortedValues;
+            }
+            
+            switch (currentMode)
+            {
+                case GameMode.Add:
+                    isValid = values.Sum() == 10;
+                    break;
+                case GameMode.Subtract:
+                    isValid = IsValidSubtractCombo(values);
+                    break;
+                case GameMode.AP:
+                    isValid = len >= 3 && IsValidAP(values);
+                    break;
+                case GameMode.GP:
+                    isValid = len >= 3 && IsValidGP(values);
+                    break;
+            }
+            
             if (isValid)
                 hints.Add(new Vector4(sx, sy, sx + (len - 1) * dx, sy + (len - 1) * dy));
         }
@@ -266,7 +425,10 @@ public class GameControl : MonoBehaviour
 
     public void OnHintButton()
     {
-        if ((currentMode == GameMode.Add && usedHintInAdd) || (currentMode == GameMode.Subtract && usedHintInSubtract)) return;
+        if ((currentMode == GameMode.Add && usedHintInAdd) || 
+            (currentMode == GameMode.Subtract && usedHintInSubtract) ||
+            (currentMode == GameMode.AP && usedHintInAP) ||
+            (currentMode == GameMode.GP && usedHintInGP)) return;
         
         FindHints();
         
@@ -277,8 +439,21 @@ public class GameControl : MonoBehaviour
             return;
         }
 
-        if (currentMode == GameMode.Add) usedHintInAdd = true;
-        else usedHintInSubtract = true;
+        switch (currentMode)
+        {
+            case GameMode.Add:
+                usedHintInAdd = true;
+                break;
+            case GameMode.Subtract:
+                usedHintInSubtract = true;
+                break;
+            case GameMode.AP:
+                usedHintInAP = true;
+                break;
+            case GameMode.GP:
+                usedHintInGP = true;
+                break;
+        }
 
         Hint.gameObject.SetActive(false);
 
@@ -397,6 +572,116 @@ public class GameControl : MonoBehaviour
                 applesList.Add(am);
             }
         }
+        else if (currentMode == GameMode.AP)
+        {
+            // Initialize board for AP mode
+            // Create sequences with common differences
+            List<int> numbers = new();
+            int sequencesCount = (horizontalLength * verticalLength) / 3;
+            
+            for (int i = 0; i < sequencesCount; i++)
+            {
+                // Generate a sequence of 3+ numbers with a common difference
+                int startNum = Random.Range(1, 8);
+                int diff = Random.Range(1, 5);
+                int seqLength = Random.Range(3, 6);
+                
+                for (int j = 0; j < seqLength; j++)
+                {
+                    numbers.Add(startNum + j * diff);
+                }
+            }
+            
+            // Fill the rest with random numbers
+            while (numbers.Count < horizontalLength * verticalLength)
+            {
+                numbers.Add(Random.Range(1, 20));
+            }
+            
+            // Shuffle the numbers
+            for (int i = numbers.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                int temp = numbers[i];
+                numbers[i] = numbers[j];
+                numbers[j] = temp;
+            }
+            
+            // Place the numbers on the board
+            int index = 0;
+            for (int i = 0; i < verticalLength; i++)
+            {
+                for (int j = 0; j < horizontalLength; j++)
+                {
+                    Vector3 pos = new(zeroPos.x + j, zeroPos.y + i, zeroPos.z);
+                    GameObject go = Instantiate(apple, pos, Quaternion.identity);
+                    AppleMeta am = go.GetComponent<AppleMeta>();
+                    am.number = numbers[index++];
+                    am.coor = new(i, j);
+                    am.isOn = true;
+                    go.name = $"Apple ({i}, {j})";
+                    go.SetActive(true);
+                    mapApple[i, j] = am.number;
+                    applesList.Add(am);
+                }
+            }
+        }
+        else if (currentMode == GameMode.GP)
+        {
+            // Initialize board for GP mode
+            // Create sequences with common ratios
+            List<int> numbers = new();
+            int sequencesCount = (horizontalLength * verticalLength) / 3;
+            
+            for (int i = 0; i < sequencesCount; i++)
+            {
+                // Generate a sequence of 3+ numbers with a common ratio
+                int startNum = Random.Range(1, 5);
+                int ratio = Random.Range(2, 4);
+                int seqLength = Random.Range(3, 5);
+                
+                int currentNum = startNum;
+                for (int j = 0; j < seqLength; j++)
+                {
+                    numbers.Add(currentNum);
+                    currentNum *= ratio;
+                }
+            }
+            
+            // Fill the rest with random numbers
+            while (numbers.Count < horizontalLength * verticalLength)
+            {
+                numbers.Add(Random.Range(1, 20));
+            }
+            
+            // Shuffle the numbers
+            for (int i = numbers.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                int temp = numbers[i];
+                numbers[i] = numbers[j];
+                numbers[j] = temp;
+            }
+            
+            // Place the numbers on the board
+            int index = 0;
+            for (int i = 0; i < verticalLength; i++)
+            {
+                for (int j = 0; j < horizontalLength; j++)
+                {
+                    Vector3 pos = new(zeroPos.x + j, zeroPos.y + i, zeroPos.z);
+                    GameObject go = Instantiate(apple, pos, Quaternion.identity);
+                    AppleMeta am = go.GetComponent<AppleMeta>();
+                    am.number = numbers[index++];
+                    am.coor = new(i, j);
+                    am.isOn = true;
+                    go.name = $"Apple ({i}, {j})";
+                    go.SetActive(true);
+                    mapApple[i, j] = am.number;
+                    applesList.Add(am);
+                }
+            }
+        }
         else
         {
             for (int i = 0; i < verticalLength; i++)
@@ -416,6 +701,25 @@ public class GameControl : MonoBehaviour
         }
 
         FindHints();
+    }
+
+    private void LoadGameMode()
+    {
+        // PlayerPrefs에서 저장된 모드 불러오기
+        if (PlayerPrefs.HasKey("GameMode"))
+        {
+            int modeIndex = PlayerPrefs.GetInt("GameMode");
+            if (System.Enum.IsDefined(typeof(GameMode), modeIndex))
+            {
+                currentMode = (GameMode)modeIndex;
+            }
+        }
+    }
+    
+    public static void SaveGameMode(GameMode mode)
+    {
+        PlayerPrefs.SetInt("GameMode", (int)mode);
+        PlayerPrefs.Save();
     }
 
     [System.Serializable]
