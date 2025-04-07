@@ -60,7 +60,6 @@ public class GameControl : MonoBehaviour
 
         mapApple = new int[verticalLength, horizontalLength];
         
-        // 저장된 모드 불러오기
         LoadGameMode();
         
         InitBoard();
@@ -167,6 +166,7 @@ public class GameControl : MonoBehaviour
         answerCoors.Clear();
     }
 
+    // 등차수열 검증 함수
     private bool IsValidAP(List<int> values)
     {
         if (values.Count < 3) return false;
@@ -184,6 +184,7 @@ public class GameControl : MonoBehaviour
         return true;
     }
 
+    // 등비수열 검증 함수
     private bool IsValidGP(List<int> values)
     {
         if (values.Count < 3) return false;
@@ -194,7 +195,7 @@ public class GameControl : MonoBehaviour
         // 정렬하지 않고 원래 순서대로 검증
         float r = (float)values[1] / values[0];
         
-        // 모든 연속된 숫자 쌍의 비율이 동일한지 확인 (부동 소수점 오차 허용)
+        // 모든 연속된 숫자 쌍의 비율이 동일한지 확인
         for (int i = 1; i < values.Count; i++)
         {
             float currentRatio = (float)values[i] / values[i-1];
@@ -232,32 +233,7 @@ public class GameControl : MonoBehaviour
 
     public void OnToggleModeButton()
     {
-        SaveCurrentModeState();
-        foreach (var a in applesList) Destroy(a.gameObject);
-        applesList.Clear();
-
-        // Cycle through all four modes
-        switch (currentMode)
-        {
-            case GameMode.Add:
-                currentMode = GameMode.Subtract;
-                break;
-            case GameMode.Subtract:
-                currentMode = GameMode.AP;
-                break;
-            case GameMode.AP:
-                currentMode = GameMode.GP;
-                break;
-            case GameMode.GP:
-                currentMode = GameMode.Add;
-                break;
-        }
         
-        LoadOrInitModeState();
-        UpdateModeUI();
-        Hint.gameObject.SetActive(true);
-        hintBox.gameObject.SetActive(false);
-        UpdateHintButtonVisibility();
     }
 
     private void UpdateHintButtonVisibility()
@@ -526,11 +502,13 @@ public class GameControl : MonoBehaviour
 
         if (currentMode == GameMode.Subtract)
         {
+            // 빼기 모드 초기화
             List<int> numbers = new();
             int pairCount = (horizontalLength * verticalLength) / 2;
 
             for (int i = 0; i < pairCount; i++)
             {
+                // 랜덤한 숫자 쌍 생성 (차이가 10인 두 숫자)
                 int baseNum = Random.Range(11, 20);
                 int secondNum = baseNum - 10;
                 if (Random.value < 0.5f) { numbers.Add(baseNum); numbers.Add(secondNum); }
@@ -542,6 +520,7 @@ public class GameControl : MonoBehaviour
                 for (int j = 0; j < horizontalLength; j++)
                     coords.Add(new(i, j));
 
+            // 좌표 랜덤 섞기
             for (int i = 0; i < coords.Count; i++)
             {
                 int r = Random.Range(i, coords.Count);
@@ -574,14 +553,13 @@ public class GameControl : MonoBehaviour
         }
         else if (currentMode == GameMode.AP)
         {
-            // Initialize board for AP mode
-            // Create sequences with common differences
+            // 등차수열 모드 초기화
             List<int> numbers = new();
             int sequencesCount = (horizontalLength * verticalLength) / 3;
             
             for (int i = 0; i < sequencesCount; i++)
             {
-                // Generate a sequence of 3+ numbers with a common difference
+                // 등차수열 생성 (공차가 같은 연속된 숫자들)
                 int startNum = Random.Range(1, 8);
                 int diff = Random.Range(1, 5);
                 int seqLength = Random.Range(3, 6);
@@ -592,13 +570,13 @@ public class GameControl : MonoBehaviour
                 }
             }
             
-            // Fill the rest with random numbers
+            // 나머지 공간을 랜덤 숫자로 채우기
             while (numbers.Count < horizontalLength * verticalLength)
             {
                 numbers.Add(Random.Range(1, 20));
             }
             
-            // Shuffle the numbers
+            // 숫자 랜덤 섞기
             for (int i = numbers.Count - 1; i > 0; i--)
             {
                 int j = Random.Range(0, i + 1);
@@ -607,7 +585,7 @@ public class GameControl : MonoBehaviour
                 numbers[j] = temp;
             }
             
-            // Place the numbers on the board
+            // 보드에 숫자 배치
             int index = 0;
             for (int i = 0; i < verticalLength; i++)
             {
@@ -628,14 +606,13 @@ public class GameControl : MonoBehaviour
         }
         else if (currentMode == GameMode.GP)
         {
-            // Initialize board for GP mode
-            // Create sequences with common ratios
+            // 등비수열 모드 초기화
             List<int> numbers = new();
             int sequencesCount = (horizontalLength * verticalLength) / 3;
             
             for (int i = 0; i < sequencesCount; i++)
             {
-                // Generate a sequence of 3+ numbers with a common ratio
+                // 등비수열 생성 (공비가 같은 연속된 숫자들)
                 int startNum = Random.Range(1, 5);
                 int ratio = Random.Range(2, 4);
                 int seqLength = Random.Range(3, 5);
@@ -648,13 +625,13 @@ public class GameControl : MonoBehaviour
                 }
             }
             
-            // Fill the rest with random numbers
+            // 나머지 공간을 랜덤 숫자로 채우기
             while (numbers.Count < horizontalLength * verticalLength)
             {
                 numbers.Add(Random.Range(1, 20));
             }
             
-            // Shuffle the numbers
+            // 숫자 랜덤 섞기
             for (int i = numbers.Count - 1; i > 0; i--)
             {
                 int j = Random.Range(0, i + 1);
@@ -663,7 +640,7 @@ public class GameControl : MonoBehaviour
                 numbers[j] = temp;
             }
             
-            // Place the numbers on the board
+            // 보드에 숫자 배치
             int index = 0;
             for (int i = 0; i < verticalLength; i++)
             {
@@ -684,6 +661,7 @@ public class GameControl : MonoBehaviour
         }
         else
         {
+            // 더하기 모드 초기화
             for (int i = 0; i < verticalLength; i++)
             {
                 for (int j = 0; j < horizontalLength; j++)
@@ -691,6 +669,7 @@ public class GameControl : MonoBehaviour
                     Vector3 pos = new(zeroPos.x + j, zeroPos.y + i, zeroPos.z);
                     GameObject go = Instantiate(apple, pos, Quaternion.identity);
                     AppleMeta am = go.GetComponent<AppleMeta>();
+                    // 랜덤 숫자 생성 (1~9)
                     int randNum = Random.Range(1, 10);
                     am.number = randNum; am.coor = new(i, j); am.isOn = true;
                     go.name = $"Apple ({i}, {j})"; go.SetActive(true);
@@ -705,7 +684,6 @@ public class GameControl : MonoBehaviour
 
     private void LoadGameMode()
     {
-        // PlayerPrefs에서 저장된 모드 불러오기
         if (PlayerPrefs.HasKey("GameMode"))
         {
             int modeIndex = PlayerPrefs.GetInt("GameMode");

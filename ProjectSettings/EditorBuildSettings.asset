@@ -17,5 +17,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Help.unity
     guid: 2b6bda225028a3b419f3a3ee454f43db
+  - enabled: 1
+    path: Assets/Help 1.unity
+    guid: 9a65b285e0b13394ca686424e33ed322
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

@@ -10,14 +10,11 @@ public class ModeSelector : MonoBehaviour
     public Button subtractModeButton;
     public Button apModeButton;
     public Button gpModeButton;
-    
     public TextMeshProUGUI selectedModeText;
-    
     private GameControl.GameMode selectedMode = GameControl.GameMode.Add;
-    
+
     private void Start()
     {
-        // 저장된 모드 불러오기
         if (PlayerPrefs.HasKey("GameMode"))
         {
             int modeIndex = PlayerPrefs.GetInt("GameMode");
@@ -27,16 +24,14 @@ public class ModeSelector : MonoBehaviour
             }
         }
         
-        // 버튼 이벤트 설정
         addModeButton.onClick.AddListener(() => SelectMode(GameControl.GameMode.Add));
         subtractModeButton.onClick.AddListener(() => SelectMode(GameControl.GameMode.Subtract));
         apModeButton.onClick.AddListener(() => SelectMode(GameControl.GameMode.AP));
         gpModeButton.onClick.AddListener(() => SelectMode(GameControl.GameMode.GP));
         
-        // 현재 선택된 모드 표시
         UpdateSelectedModeUI();
     }
-    
+
     private void SelectMode(GameControl.GameMode mode)
     {
         selectedMode = mode;
