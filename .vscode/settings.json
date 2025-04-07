@@ -52,5 +52,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "Apple_game.sln"
+    "dotnet.defaultSolution": "apple-game.sln"
 }
