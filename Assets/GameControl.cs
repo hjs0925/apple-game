@@ -99,24 +99,30 @@ public class GameControl : MonoBehaviour
         gameOverText.text = $"Game Over\n\nYour Score: {score}";
     }
 
+    // 선택한 사과들의 계산을 수행하는 함수
     private void calculateAnswer()
     {
+        // 마우스 버튼이 떼어지지 않았으면 계산하지 않음
         if (!Input.GetMouseButtonUp(0)) return;
 
+        // 선택된 사과의 개수
         int cnt = selectList.Count;
         int result = 0;
 
+        // 더하기 모드: 선택한 사과들의 숫자 합이 10인지 확인
         if (currentMode == GameMode.Add)
         {
             result = selectList.Sum(a => a.number);
             if (result == 10) OnCorrectAnswer(cnt);
         }
+        // 빼기 모드: 가장 큰 숫자에서 나머지 숫자들의 합을 뺀 결과가 0인지 확인
         else if (currentMode == GameMode.Subtract && cnt > 1)
         {
             var maxApple = selectList.OrderByDescending(a => a.number).First();
             result = maxApple.number - selectList.Where(a => a != maxApple).Sum(a => a.number);
             if (result == 0) OnCorrectAnswer(cnt);
         }
+        // 등차수열 모드: 선택한 사과들이 등차수열을 이루는지 확인 (최소 3개 이상)
         else if (currentMode == GameMode.AP && cnt >= 3)
         {
             // 세로줄인지 확인 (모든 사과가 같은 열에 있는지)
@@ -139,6 +145,7 @@ public class GameControl : MonoBehaviour
                 OnCorrectAnswer(cnt);
             }
         }
+        // 등비수열 모드: 선택한 사과들이 등비수열을 이루는지 확인 (최소 3개 이상)
         else if (currentMode == GameMode.GP && cnt >= 3)
         {
             // 세로줄인지 확인 (모든 사과가 같은 열에 있는지)
@@ -162,16 +169,59 @@ public class GameControl : MonoBehaviour
             }
         }
 
+        // 선택 목록 초기화
         selectList.Clear();
         answerCoors.Clear();
+    }
+
+    // 정답일 때 호출되는 함수
+    private void OnCorrectAnswer(int cnt)
+    {
+        // 힌트 박스 숨기기
+        hintBox.gameObject.SetActive(false);
+        
+        // 콤보 카운트 계산 (일정 시간 내에 연속으로 정답을 맞추면 콤보 증가)
+        comboCnt = (Time.time - comboDelta < comboTime && comboDelta != 0) ? comboCnt + 1 : 0;
+        comboDelta = Time.time;
+
+        // 점수 계산: 선택한 사과 개수 + (3개 이상 선택 시 보너스 10점) + (콤보 × 5점)
+        score += cnt + (cnt >= 3 ? 10 : 0) + comboCnt * 5;
+        
+        // 정답 애니메이션 표시
+        animateCorrect(cnt, comboCnt, cnt >= 3);
+
+        // 정답 사과들을 보드에서 제거
+        foreach (Vector2Int coor in answerCoors)
+            mapApple[coor.x, coor.y] = 0;
+
+        // 힌트 다시 찾기
+        hints.Clear();
+        FindHints();
+    }
+
+    // 정답 애니메이션 표시 함수
+    private void animateCorrect(int scoreValue, int combo, bool isMany)
+    {
+        // 선택한 사과들에 애니메이션 적용
+        foreach (var a in selectList) a.isAnimated = true;
+        
+        // 선택 박스 중앙 위치 계산
+        Vector2 midPos = (Vector2)selectBox.position + selectBox.rect.center;
+        
+        // 획득 점수 텍스트 생성 및 표시
+        var addScore = Instantiate(addScoreText, midPos, Quaternion.identity, canvas.transform);
+        addScore.gameObject.SetActive(true);
+        addScore.GetComponent<AddScore>().print(scoreValue, combo, isMany);
     }
 
     // 등차수열 검증 함수
     private bool IsValidAP(List<int> values)
     {
+        // 최소 3개 이상의 숫자가 필요
         if (values.Count < 3) return false;
         
         // 정렬하지 않고 원래 순서대로 검증
+        // 첫 번째와 두 번째 숫자의 차이를 공차로 사용
         int d = values[1] - values[0];
         
         // 모든 연속된 숫자 쌍의 차이가 동일한지 확인
@@ -187,12 +237,14 @@ public class GameControl : MonoBehaviour
     // 등비수열 검증 함수
     private bool IsValidGP(List<int> values)
     {
+        // 최소 3개 이상의 숫자가 필요
         if (values.Count < 3) return false;
         
         // 모든 값이 양수인지 확인 (등비수열에 필요)
         if (values.Any(v => v <= 0)) return false;
         
         // 정렬하지 않고 원래 순서대로 검증
+        // 첫 번째와 두 번째 숫자의 비율을 공비로 사용
         float r = (float)values[1] / values[0];
         
         // 모든 연속된 숫자 쌍의 비율이 동일한지 확인
@@ -206,29 +258,16 @@ public class GameControl : MonoBehaviour
         return true;
     }
 
-    private void OnCorrectAnswer(int cnt)
+    // 빼기 모드에서 유효한 조합인지 확인하는 함수
+    private bool IsValidSubtractCombo(List<int> values)
     {
-        hintBox.gameObject.SetActive(false);
-        comboCnt = (Time.time - comboDelta < comboTime && comboDelta != 0) ? comboCnt + 1 : 0;
-        comboDelta = Time.time;
-
-        score += cnt + (cnt >= 3 ? 10 : 0) + comboCnt * 5;
-        animateCorrect(cnt, comboCnt, cnt >= 3);
-
-        foreach (Vector2Int coor in answerCoors)
-            mapApple[coor.x, coor.y] = 0;
-
-        hints.Clear();
-        FindHints();
-    }
-
-    private void animateCorrect(int scoreValue, int combo, bool isMany)
-    {
-        foreach (var a in selectList) a.isAnimated = true;
-        Vector2 midPos = (Vector2)selectBox.position + selectBox.rect.center;
-        var addScore = Instantiate(addScoreText, midPos, Quaternion.identity, canvas.transform);
-        addScore.gameObject.SetActive(true);
-        addScore.GetComponent<AddScore>().print(scoreValue, combo, isMany);
+        // 최소 2개 이상의 숫자가 필요
+        if (values.Count < 2) return false;
+        
+        // 가장 큰 숫자를 찾아서 나머지 숫자들의 합을 뺀 결과가 0인지 확인
+        int max = values.Max();
+        values.Remove(max);
+        return max - values.Sum() == 0;
     }
 
     public void OnToggleModeButton()
@@ -318,27 +357,36 @@ public class GameControl : MonoBehaviour
         return applesList.FirstOrDefault(a => a.coor.x == x && a.coor.y == y && a.isOn);
     }
 
+    // 보드에서 가능한 모든 힌트를 찾는 함수
     private void FindHints()
     {
+        // 기존 힌트 목록 초기화
         hints.Clear();
+        
+        // 보드의 모든 위치에서 가로/세로 방향으로 힌트 검사
         for (int x = 0; x < verticalLength; x++)
         {
             for (int y = 0; y < horizontalLength; y++)
             {
+                // 가로 방향으로 힌트 검사 (dx=1, dy=0)
                 CheckHintLine(x, y, 1, 0, horizontalLength - y);
+                // 세로 방향으로 힌트 검사 (dx=0, dy=1)
                 CheckHintLine(x, y, 0, 1, verticalLength - x);
             }
         }
     }
 
+    // 특정 위치에서 특정 방향으로 힌트를 찾는 함수
     private void CheckHintLine(int sx, int sy, int dx, int dy, int maxLength)
     {
+        // 2개 이상의 연속된 사과부터 검사
         for (int len = 2; len <= maxLength; len++)
         {
             List<int> values = new();
             List<Vector2Int> coords = new();
             bool hasEmpty = false;
 
+            // 현재 방향으로 len개의 사과를 확인
             for (int k = 0; k < len; k++)
             {
                 var a = GetAppleAt(sx + k * dx, sy + k * dy);
@@ -347,6 +395,7 @@ public class GameControl : MonoBehaviour
                 coords.Add(a.coor);
             }
 
+            // 빈 공간이 있으면 다음 길이 검사
             if (hasEmpty) continue;
 
             bool isValid = false;
@@ -354,6 +403,7 @@ public class GameControl : MonoBehaviour
             // 세로줄인지 확인 (dx가 0인 경우)
             bool isVertical = dx == 0;
             
+            // 등차/등비수열 모드에서 세로줄인 경우 위에서 아래로 정렬
             if (isVertical && (currentMode == GameMode.AP || currentMode == GameMode.GP))
             {
                 // 세로줄인 경우 위에서 아래로 정렬
@@ -370,44 +420,46 @@ public class GameControl : MonoBehaviour
                 values = sortedValues;
             }
             
+            // 현재 게임 모드에 따라 유효한 조합인지 확인
             switch (currentMode)
             {
                 case GameMode.Add:
+                    // 더하기 모드: 합이 10인지 확인
                     isValid = values.Sum() == 10;
                     break;
                 case GameMode.Subtract:
+                    // 빼기 모드: 가장 큰 수에서 나머지 합을 뺀 결과가 0인지 확인
                     isValid = IsValidSubtractCombo(values);
                     break;
                 case GameMode.AP:
+                    // 등차수열 모드: 3개 이상의 연속된 숫자가 등차수열을 이루는지 확인
                     isValid = len >= 3 && IsValidAP(values);
                     break;
                 case GameMode.GP:
+                    // 등비수열 모드: 3개 이상의 연속된 숫자가 등비수열을 이루는지 확인
                     isValid = len >= 3 && IsValidGP(values);
                     break;
             }
             
+            // 유효한 조합이면 힌트 목록에 추가
             if (isValid)
                 hints.Add(new Vector4(sx, sy, sx + (len - 1) * dx, sy + (len - 1) * dy));
         }
     }
 
-    private bool IsValidSubtractCombo(List<int> values)
-    {
-        if (values.Count < 2) return false;
-        int max = values.Max();
-        values.Remove(max);
-        return max - values.Sum() == 0;
-    }
-
+    // 힌트 버튼 클릭 시 호출되는 함수
     public void OnHintButton()
     {
+        // 이미 힌트를 사용한 모드면 무시
         if ((currentMode == GameMode.Add && usedHintInAdd) || 
             (currentMode == GameMode.Subtract && usedHintInSubtract) ||
             (currentMode == GameMode.AP && usedHintInAP) ||
             (currentMode == GameMode.GP && usedHintInGP)) return;
         
+        // 가능한 힌트 찾기
         FindHints();
         
+        // 힌트가 없으면 메시지 표시
         if (hints.Count == 0)
         {
             hintBox.gameObject.SetActive(false);
@@ -415,6 +467,7 @@ public class GameControl : MonoBehaviour
             return;
         }
 
+        // 현재 모드에 따라 힌트 사용 표시
         switch (currentMode)
         {
             case GameMode.Add:
@@ -431,8 +484,10 @@ public class GameControl : MonoBehaviour
                 break;
         }
 
+        // 힌트 버튼 비활성화
         Hint.gameObject.SetActive(false);
 
+        // 첫 번째 힌트 표시
         Vector4 hint = hints[0];
         Vector2 hintOffsetMin = new Vector2(zeroPos.x + hint.y - 0.5f, zeroPos.y + hint.x - 0.5f);
         Vector2 hintOffsetMax = new Vector2(zeroPos.x + hint.w + 0.5f, zeroPos.y + hint.z + 0.5f);
@@ -441,15 +496,19 @@ public class GameControl : MonoBehaviour
         hintBox.gameObject.SetActive(true);
     }
 
+    // 힌트가 없을 때 메시지를 표시하는 코루틴
     private IEnumerator ShowNoHintMessage()
     {
+        // 힌트 박스 숨기기
         hintBox.gameObject.SetActive(false);
         noHintText.gameObject.SetActive(true);
         noHintText.text = "힌트 없음!";
         
+        // 페이드 아웃 효과를 위한 CanvasGroup 컴포넌트 가져오기
         CanvasGroup cg = noHintText.GetComponent<CanvasGroup>();
         if (cg == null) cg = noHintText.gameObject.AddComponent<CanvasGroup>();
         
+        // 2초 동안 페이드 아웃
         float duration = 2f;
         float elapsed = 0f;
         
@@ -460,6 +519,7 @@ public class GameControl : MonoBehaviour
             yield return null;
         }
         
+        // 메시지 숨기기
         noHintText.gameObject.SetActive(false);
         cg.alpha = 1f;
     }
